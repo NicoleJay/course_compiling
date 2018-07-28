@@ -1,0 +1,492 @@
+import java.lang.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.awt.event.ActionEvent;
+import java.util.*;
+public class LL_1 {
+	
+
+	public static String creatVN(String[] grammer)  //构造非终结符集
+	{
+		String VN=new String();
+		for(int i=0;i<10;i++)
+		{
+			char [] ch=grammer[i].toCharArray();  //取文法中每条语句的第一个字符放入非终结符中				
+			if(VN.indexOf(String.valueOf(ch[0]))==-1)
+			{
+				StringBuffer subVN=new StringBuffer(VN);
+				subVN.insert(subVN.length(), ch[0]);
+				VN=subVN.toString();
+			}
+		}
+		return VN;
+	}
+
+	public static String creatVT(String VN,String [] grammer)    //构造终结符集
+	{
+		String VT=new String("#");
+		for(int i=0;i<10;i++)
+		{
+			String subgrammer=grammer[i].replaceAll("->","");
+			subgrammer=subgrammer.replaceAll("3","");
+			char [] ch=subgrammer.toCharArray();
+			for(int j=0;j<ch.length;j++)
+			{
+				if(VN.indexOf(String.valueOf(ch[j]))==-1&&VT.indexOf(String.valueOf(ch[j]))==-1)
+				{					
+				    StringBuffer subVT=new StringBuffer(VT);
+			   		subVT.insert(subVT.length(), ch[j]);
+	            	VT=subVT.toString();
+				}
+			}
+		}
+		return VT;
+	}
+
+	public static String getfirst(char thevn,String VN,String [] grammer)   //求first集
+	{
+		char[]thefirst=new char[10];
+		int countfirst=0;
+		for(int j=0;j<10;j++)   //在grammer字符串数组中找thevn为开始状态的语句
+		{
+			char [] ch=grammer[j].toCharArray();
+			if(thevn==ch[0])   //找到了thevn为开始状态的语句
+			{
+				for(int k=2;k<ch.length;k++)   //开始分析此条以thevn为开始状态的语句
+				{
+					if(ch[k]=='>'&&ch[k-1]=='-')  //查找第一个字符
+					{
+						if(VN.indexOf(String.valueOf(ch[k+1]))==-1)   //第一个字符是终结符
+						{
+							//System.out.println(ch[k+1]);
+							thefirst[countfirst]=ch[k+1];
+							countfirst++;
+							continue;
+						}
+						else  //第一个字符是非终结符
+						{
+							return getfirst(ch[k+1],VN,grammer);							
+						}
+					}
+				}
+			}
+		}
+		return String.valueOf(thefirst);
+	}
+
+	
+	public static String getfollow(char thevn,String VN,String [] grammer)   //求follow集
+	{
+		char[]thefollow=new char[10];
+		int countfollow=0;
+		thefollow[0]='#';
+		countfollow++;
+		for(int j=0;j<10;j++)
+		{
+			int begin=grammer[j].indexOf(String.valueOf("->"));  //找到文法的每条语句中->所在的索引处
+			int findvn=grammer[j].indexOf(String.valueOf(thevn), begin);
+			if(findvn!=-1)      //在文法中某条语句的->右侧找到要求follow集的非终结符
+			{
+				char [] ch=grammer[j].toCharArray();
+				if(findvn+1<=ch.length-1&&VN.indexOf(String.valueOf(ch[findvn+1]))==-1)  //要求的非终结符后接终结符时
+				{
+					thefollow[countfollow]=ch[findvn+1];
+				}
+				
+				if(grammer[j].endsWith(String.valueOf(thevn)))   //当A->alpha_B时
+				{
+					if(ch[0]!=thevn)
+					{
+						String subfollow=getfollow(ch[0],VN,grammer);  //求follow(A)
+			       		char [] subf=subfollow.trim().toCharArray();
+				    	for(int k=0;k<subf.length;k++)    //把follow(A)加入follow(B)    ////
+			    		{
+				    		if(String.valueOf(thefollow).indexOf(String.valueOf(subf[k]))==-1)
+				    		{
+				    			thefollow[countfollow]=subf[k];
+				        		countfollow++;
+				    		}				    		
+				    	}
+					}				
+				}
+				if(ch[ch.length-2]==thevn&&VN.indexOf(String.valueOf(ch[ch.length-1]))!=-1)  //当A->alpha_B_beta时
+				{
+					String firststr=getfirst(ch[ch.length-1],VN,grammer);  //求first(beta)
+					char [] subfs=firststr.trim().toCharArray();
+					for(int l=0;l<subfs.length;l++)   //把first(beta)-{3}加入follow(B)   ////
+					{
+						if(subfs[l]!='3')
+						{
+							if(String.valueOf(thefollow).indexOf(String.valueOf(subfs[l]))==-1)
+							{
+								thefollow[countfollow]=subfs[l];
+					        	countfollow++;
+							}							
+						}						
+					}
+					for(int n=0;n<10;n++)
+					{
+						if(grammer[n].startsWith(String.valueOf(ch[ch.length-1]))&&grammer[n].indexOf("->3")!=0)  //若有beta->3时
+						{
+							String subfollow1=getfollow(ch[0],VN,grammer);    //求follow(A)
+							char [] subf1=subfollow1.trim().toCharArray();
+							for(int m=0;m<subf1.length;m++)     //把follow(A)加入follow(B)   ////
+							{
+								if(String.valueOf(thefollow).indexOf(String.valueOf(subf1[m]))==-1)
+								{
+									thefollow[countfollow]=subf1[m];
+						    		countfollow++;
+								}							
+							}
+						}
+					}
+				}
+			}
+		}
+		return String.valueOf(thefollow);		
+	}
+	
+	public static String [][] creattable(String VN,String VT,String [] grammer)   //构造分析表
+	{
+		String [][] table=new String[VN.length()+1][VT.length()+1];
+		char [] vn=VN.toCharArray();
+		char [] vt=VT.toCharArray();
+		for(int row=1;row<=VN.length();row++)
+		{
+			table[row][0]=String.valueOf(vn[row-1]);  //表中第0列放非终结符
+		}
+		for(int col=1;col<=VT.length();col++)
+		{
+			table[0][col]=String.valueOf(vt[col-1]);   //表中第0行放终结符
+		}
+		for(int j=1;j<=VT.length();j++)
+		{
+			char [] thevt=table[0][j].toCharArray();   //看某一终结符
+			for(int i=1;i<=VN.length();i++)
+			{
+				char []thevn=table[i][0].toCharArray();
+				if(getfirst(thevn[0],VN,grammer).indexOf(table[0][j])!=-1)  //若该终结符在非终结符的first集里
+				{
+					int count_containvn=0;
+					String [] containvn=new String[3];
+					for(int k=0;k<10;k++)   //找该非终结符为某产生式左边的语句
+					{						
+						char [] ch=grammer[k].toCharArray();
+						if(ch[0]==thevn[0])
+						{							
+							containvn[count_containvn]=grammer[k];  //把以该非终结符为某产生式左边的语句放入一个字符串数组中
+							count_containvn++;
+						}												
+					}
+					if(count_containvn==1)   //当只有一句以该非终结符为某产生式左边的语句时
+					{
+						table[i][j]=containvn[0];
+					}
+					else   //当不只一句以该非终结符为某产生式左边的语句时
+					{
+						boolean find=false;
+						int beginwithvn=0;
+						int l=0;
+						while(!find&&l<count_containvn)
+						{
+					    	char [] containvn1=containvn[l].toCharArray();						
+				    		for(int n=2;n<containvn1.length;n++)
+						   	{
+						   		if(containvn1[n]=='>'&&containvn1[n-1]=='-')
+						   		{
+						   			if(containvn1[n+1]==thevt[0])   //找到以终结符为产生式右边的开始
+						    		{
+						    			find=true;
+						    			table[i][j]=containvn[l];										
+						    		}
+					    			else
+					    			{
+					    				if(VN.indexOf(containvn1[n+1])!=-1)  //产生式右边以非终结符开始
+						    			{
+						    				beginwithvn=l;
+						    			}
+						   			}
+						    	}
+					   		}
+				    		l++;
+						}
+						if(!find)
+						{
+							table[i][j]=containvn[beginwithvn];
+						}
+					}	    			
+				}
+			}
+		}
+		for(int numvn=1;numvn<=VN.length();numvn++)
+		{
+			char [] thevns=table[numvn][0].toCharArray();
+			
+			if(getfirst(thevns[0],VN,grammer).indexOf(String.valueOf('3'))!=-1)   //当3属于某非终结符的first集时
+			{
+				for(int numvt=1;numvt<=VT.length();numvt++)
+				{
+					if(getfollow(thevns[0],VN,grammer).indexOf(String.valueOf(table[0][numvt]))!=-1)  //且当某终结符属于该非终结符的follow集时
+					{
+						for(int g=0;g<10;g++)
+						{
+							char [] chs=grammer[g].toCharArray();
+							if(grammer[g].indexOf(String.valueOf('3'))!=-1&&chs[0]==thevns[0])
+							{
+								table[numvn][numvt]=grammer[g];
+							//	break;
+							}
+						}						
+					}
+				}
+			}
+		}
+		for(int row1=0;row1<=VN.length();row1++)
+		{
+			for(int col1=0;col1<=VT.length();col1++)
+			{
+				System.out.print(table[row1][col1]+" ");
+			}
+			System.out.println("");
+		}
+	
+		return table;
+	}
+	
+	
+	public static class window extends Frame    //界面
+	{
+		Panel out=new Panel();
+		TextField inputstr=new TextField();
+		Button btn=new Button("运行");
+		GridBagLayout gbl=new GridBagLayout();
+		GridBagConstraints gbc=new GridBagConstraints();
+		//String instr=new String();
+
+		window(String title)
+		{			
+			super(title);
+			
+			gbc.weightx=0;	
+			//gbc.weighty=1.0;	
+			gbc.gridx=0;
+			gbl.setConstraints(btn, gbc);
+			out.add(btn);
+			btnlistener bl=new btnlistener();
+			btn.addActionListener(bl);
+			gbc.fill=GridBagConstraints.BOTH;
+			//gbc.gridx=1;
+			gbc.gridwidth=GridBagConstraints.REMAINDER;
+			gbl.setConstraints(inputstr, gbc);
+			out.add(inputstr);	
+			
+			out.setLayout(gbl);
+			this.add(out);
+			this.setSize(900, 450);
+			this.setVisible(true);
+		}
+		
+		class btnlistener implements ActionListener
+		{
+			public void actionPerformed(ActionEvent e)
+			{
+				
+				if(e.getActionCommand()=="运行")
+				{
+					String input=inputstr.getText();
+		    		
+		    		String [] grammer=new String[10];
+		    		grammer[0]="E->TG";
+		    		grammer[1]="G->+TG";
+		    		grammer[2]="G->-TG";
+		    		grammer[3]="G->3";
+		    		grammer[4]="T->FS";
+		    		grammer[5]="S->*FS";
+		    		grammer[6]="S->/FS";
+		    		grammer[7]="S->3";
+		    		grammer[8]="F->(E)";
+		    		grammer[9]="F->i";
+		    		String VN=new String();
+		    		VN=creatVN(grammer);
+		    		System.out.println("非终结符集为"+'\n'+VN);
+		    		String VT=new String();
+		    		VT=creatVT(VN,grammer);
+		    		System.out.println("终结符集为"+'\n'+VT);
+		    		System.out.println("分析表为");
+		    		String [][] table=creattable(VN,VT,grammer);
+			    		
+		    		if(!input.isEmpty())
+		    		{
+		    			char [] in=input.toCharArray();	  //总控程序	
+		    			Stack symbol=new Stack();
+		    			int number=0;
+		    			String num=String.valueOf(number);	
+		    			symbol.push("#");
+		    			symbol.push("E");		
+		    			String stack=getstack(symbol);
+		    			int pos=0;
+		    			char a=in[pos];
+		    			String left=getinput(in,pos);
+		    			String usegrammer=new String();
+		    			String action=new String("初始化");
+		    			outdisp(num, stack, left, usegrammer,action);   //表头
+		    			//System.out.println(1);
+		    			boolean flag=true;		
+		    			while(flag)
+		    			{
+		    				number++;
+		    				num=String.valueOf(number);
+		    				usegrammer="";
+		    				String str_x=symbol.peek().toString();  //取出栈顶元素
+		    				char [] xs=str_x.toCharArray();
+		    				char x=xs[0];
+		    				if(VT.indexOf(String.valueOf(x))!=-1)  //当栈顶元素是终结符时
+		    				{
+		    					if(x=='#'&&x==a)
+		    					{
+		    						flag=false;
+		    						System.out.println("ACCEPT!");
+		    						break;
+		    					}
+		    					if(x!='#'&&x==a)
+		    					{
+		    						symbol.pop();
+		    						pos++;
+		    						a=in[pos];
+		    						left=getinput(in,pos);
+		    						action="getnext("+a+")";
+		    					}
+		    					else
+		    					{
+		    						System.out.println("Error!");
+		    						flag=false;
+		    					}					
+		    				}
+		    				if(VN.indexOf(String.valueOf(x))!=-1)  //当栈顶元素是非终结符时
+		    				{                                 //在分析表中找到相应位置
+		    					boolean find=false;
+		    					int i=1;
+		    					while((i<=VN.length())&&!find)         //行   
+		    					{
+		    						if(table[i][0].indexOf(String.valueOf(x))!=-1)
+		    						{
+		    							int j=1;
+		    							while(j<=VT.length()&&!find)    //列
+		    							{
+		    								if(table[0][j].indexOf(String.valueOf(a))!=-1)
+		    								{
+		    									find=true;
+		    									if(table[i][j]!="")   //当分析表对应位置不为空时
+		    									{
+		    										usegrammer=table[i][j];
+		    										//System.out.println(table[i][j]);
+		    										char [] str=table[i][j].toCharArray();
+		    						     			if(str[str.length-1]!='3')
+		    							    		{
+		    								    		symbol.pop();
+		    								    		action="pop,push(";
+		    								    		for(int loop=str.length-1;loop>=3;loop--)  //将产生式右边从右向左入栈
+		    									    	{
+		    										    	symbol.push(str[loop]);
+		    										    	action=action+str[loop];
+		    							    			}
+		    								    		action=action+")";
+		    								    		
+		    								    	}					     			
+		    						     			else        //当表中为A->3时
+		    						     			{
+		    						     				symbol.pop();
+		    						     				action="pop";
+		    						     			}
+		    									}
+		    									else     //当分析表对应位置为空时,出错
+		    									{
+		    										System.out.println("Error!");
+		    										flag=false;
+		    									}							
+		    								}
+		    								else
+		    									j++;
+		    							}						
+		    						}
+		    						else
+		    							i++;
+		    					}			
+		    				}
+		    				stack=getstack(symbol);
+		    				outdisp(num, stack, left, usegrammer, action);
+		    			}		    					
+		    		}
+     			}
+			}
+		}
+		
+	    public void outdisp(String num,String stack,String left,String usegrammer,String action)
+		{
+			TextField number=new TextField(num,5);   //步骤
+			gbc.gridx=0;
+			gbc.weightx=0.0;
+			gbc.gridwidth=1;
+			gbl.setConstraints(number, gbc);
+			out.add(number);
+				
+			TextField thestack=new TextField(stack,30);     //符号栈
+			//gbc.gridx=1;
+			gbc.gridx=GridBagConstraints.RELATIVE;
+			gbl.setConstraints(thestack, gbc);
+			out.add(thestack);
+				
+			TextField strleft=new TextField(left,30);       //剩余输入串
+			gbc.gridx=GridBagConstraints.RELATIVE;
+			gbl.setConstraints(strleft, gbc);
+			out.add(strleft);
+				
+			TextField usethegrammer=new TextField(usegrammer,20);   //所用产生式
+			gbc.gridx=GridBagConstraints.RELATIVE;
+			gbl.setConstraints(usethegrammer, gbc);
+			out.add(usethegrammer);
+				
+			TextField actions=new TextField(action,20);    //动作
+			gbc.gridwidth=GridBagConstraints.REMAINDER;
+			gbl.setConstraints(actions, gbc);
+			out.add(actions);
+		}			
+	}
+	
+	public static String getstack(Stack stack)   //获取符号栈中的元素
+	{
+		char [] thestack=new char[10];
+		
+		for(int i=stack.size()-1;i>=0;i--)
+		{
+			thestack[i]=stack.pop().toString().charAt(0);		
+		}
+		String strstack=String.valueOf(thestack);
+		thestack=strstack.trim().toCharArray();
+		for(int j=0;j<=thestack.length-1;j++)
+		{
+			stack.push(thestack[j]);
+		}
+		return strstack;
+	}
+	
+	public static String getinput(char[]in,int pos)  //获取剩余输入串
+	
+	{
+		char []ins=new char[in.length-pos];		
+		for(int i=0;i<ins.length;i++)
+		{
+			ins[i]=in[pos];
+			pos++;
+		}
+		String strinput=String.valueOf(ins);
+		return strinput;
+	}
+	
+	public static void main(String[]args)
+	{		
+		window thewindow=new window("LL(1)");
+		thewindow.outdisp("步骤", "符号栈", "剩余符号串", "所用产生式", "动作");		
+	}
+}
